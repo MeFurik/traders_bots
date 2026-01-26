@@ -24,9 +24,9 @@ class TinkoffAPI:
                 accountid=accountid,
                 figi=figi,
                 quantity=lots,
-                direction=1,  # BUY
-                ordertype=1, # MARKET
-                orderid="botbuy"+figi
+                direction=1,   # BUY
+                ordertype=1,  # MARKET
+                orderid="botbuy" + figi
             )
             return order
 
@@ -36,8 +36,8 @@ class TinkoffAPI:
                 accountid=accountid,
                 figi=figi,
                 quantity=lots,
-                direction=2,  # SELL
-                order_type=1, # MARKET
-                order_id="bot_sell_"+figi
+                direction=2,   # SELL
+                ordertype=1,  # MARKET
+                orderid="botsell" + figi
             )
             return order
