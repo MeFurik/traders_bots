@@ -17,7 +17,7 @@ from db import (
     setsubscription, userhasactivesubscription
 )
 from utils import isadmin
-from tradingloop import globaltradingloop
+from trading_loop import global_trading_loop
 
 logging.basicConfig(level=logging.INFO)
 

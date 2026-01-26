@@ -4,7 +4,7 @@ import sqlite3
 from config import SL_PCT, TP_PCT
 from db import get_user, user_has_active_subscription
 from trading_bot import Strategy
-from utils import is_admin
+from utils import isadmin
 
 DB_PATH = "trades.db"
 
@@ -28,7 +28,7 @@ async def global_trading_loop(app):
                 continue
 
             # 1) Сигналы — если включены
-            if user"signals_enabled":
+            if user["signals_enabled"]:
                 text = (
                     f"ТЕСТОВЫЙ СИГНАЛ:\n"
                     f"FIGI: {signalfigi}\n"
