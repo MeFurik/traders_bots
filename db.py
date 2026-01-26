@@ -12,11 +12,11 @@ def getuser(telegramid: int):
         return None
     return {
         "telegramid": row[0],
-        "tinkofftoken": row[1],
-        "accountid": row[2],
-        "subscriptionuntil": row[3],
-        "autotrading": bool(row[4]),
-        "signalsenabled": bool(row[5]),
+        "tinkoff_token": row[1],
+        "account_id": row[2],
+        "subscription_until": row[3],
+        "auto_trading": bool(row[4]),
+        "signals_enabled": bool(row[5]),
     }
 
 

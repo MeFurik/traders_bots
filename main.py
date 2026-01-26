@@ -33,7 +33,7 @@ async def showmainmenu(update: Update, context: ContextTypes.DEFAULT_TYPE, edit:
         text += "Роль: АДМИН\n"
     if user:
         text += f"Подписка: {'активна' if subok or isadmin(userid) else 'нет'}\n"
-        text += f"Автоторговля: {'ON' if user['autotrading'] else 'OFF'}\n"
+        text += f"Автоторговля: {'ON' if user['auto_trading'] else 'OFF'}\n"
         text += f"Сигналы: {'ON' if user['signals_enabled'] else 'OFF'}\n"
     else:
         text += "Пользователь ещё не настроен. Нажми 'Настроить API'.\n"
@@ -104,7 +104,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not isadmin(telegramid) and not userhasactivesubscription(telegramid):
             await query.editmessagetext("Нет активной подписки, автоторговля недоступна.")
             return
-        newstate = not user"autotrading"
+        newstate = not user["auto_trading"]
         setautotrading(telegramid, newstate)
         await query.editmessagetext(f"Автоторговля теперь: {'ON' if newstate else 'OFF'}")
         await showmainmenu(update, context, edit=False)
@@ -142,7 +142,7 @@ async def texthandler(update: Update, context: ContextTypes.DEFAULTTYPE):
     # отмена
     if text.lower() in ("отмена", "cancel"):
         context.userdata.pop("awaiting", None)
-        context.userdata.pop("tinkofftoken", None)
+        context.userdata.pop("tinkoff_token", None)
         context.userdata.pop("grantsubtarget", None)
         await update.message.replytext("Отменено.")
         await showmainmenu(update, context, edit=False)
@@ -152,7 +152,7 @@ async def texthandler(update: Update, context: ContextTypes.DEFAULTTYPE):
 
     # --- Ввод API токена ---
     if awaiting == "token":
-        context.userdata"tinkoff_token" = text
+        context.userdata["tinkoff_token"] = text
         context.userdata["awaiting"] = "account"
         await update.message.replytext(
             "Токен сохранён. Теперь отправь свой accountid."
@@ -161,11 +161,11 @@ async def texthandler(update: Update, context: ContextTypes.DEFAULTTYPE):
 
     # --- Ввод accountid ---
     if awaiting == "account":
-        token = context.userdata.get("tinkofftoken")
+        token = context.userdata.get("tinkoff_token")
         accountid = text
         createorupdateuser(telegramid, tinkofftoken=token, accountid=accountid)
         context.userdata.pop("awaiting", None)
-        context.userdata.pop("tinkofftoken", None)
+        context.userdata.pop("tinkoff_token", None)
         await update.message.replytext("API токен и accountid сохранены.")
         await showmainmenu(update, context, edit=False)
         return
@@ -182,7 +182,7 @@ async def texthandler(update: Update, context: ContextTypes.DEFAULTTYPE):
             await update.message.replytext(
                 "Пользователь ещё не общался с ботом. Подписка всё равно будет сохранена."
             )
-        context.userdata"grant_sub_target" = targetid
+        context.userdata["grant_sub_target"] = targetid
         context.userdata["awaiting"] = "grantsubuntil"
         await update.message.replytext(
             "Введи дату окончания подписки в формате YYYY-MM-DD или '+N' (дней).\n"
