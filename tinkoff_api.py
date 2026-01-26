@@ -1,5 +1,5 @@
 # tinkoffapi.py
-from tinkoff.invest import Client
+from t-tech-investments import Client
 
 class TinkoffAPI:
     def init(self, token: str):
