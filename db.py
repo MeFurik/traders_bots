@@ -118,9 +118,9 @@ def setsignalsenabled(telegramid: int, enabled: bool):
 
 def userhasactivesubscription(telegramid: int) -> bool:
     user = getuser(telegramid)
-    if not user or not user"subscriptionuntil":
+    if not user or not user["subscriptionuntil"]:
         return False
-    return datetime.fromisoformat(user"subscriptionuntil") > datetime.utcnow()
+    return datetime.fromisoformat(user["subscriptionuntil"]) > datetime.utcnow()
 
 
 # ---------- TRADES ----------
@@ -157,6 +157,7 @@ def getopenpositions(telegramid):
     """, (telegramid,))
     rows = c.fetchall()
     conn.close()
-    return 
-        {"figi": r[0, "qty": r1, "entryprice": r2, "sl": r3, "tp": r4}
-        for r in rows
+    return [
+    {"figi": r[0], "qty": r[1], "entryprice": r[2], "sl": r[3], "tp": r[4]}
+    for r in rows
+]
