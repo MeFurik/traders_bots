@@ -18,7 +18,7 @@ except Exception:
     FERNET_AVAILABLE = False
     fernet = None
 
-DB_PATH = "data.db"
+DB_PATH = os.path.join(os.path.dirname(__file__), "data.db")
 
 def _conn():
     return sqlite3.connect(DB_PATH)
@@ -54,7 +54,7 @@ def init_db():
     conn.close()
 
 # alias для main.py (main.py ожидает initdb)
-def initdb():
+def init_db():
     return init_db()
 
 def log_trade_open(telegram_id: int, symbol: str, direction: str, lots: float,
@@ -127,7 +127,6 @@ def createorupdateuser(telegram_id: int, tinkofftoken: Optional[str]=None, accou
     conn = _conn()
     c = conn.cursor()
     if not u:
-        # вставляем новую запись
         token_blob = None
         if tinkofftoken is not None:
             token_blob = fernet.encrypt(tinkofftoken.encode()) if (FERNET_AVAILABLE and fernet) else tinkofftoken.encode()
@@ -136,7 +135,6 @@ def createorupdateuser(telegram_id: int, tinkofftoken: Optional[str]=None, accou
             (telegram_id, username or "", token_blob, accountid or "", 0, 0, None, now)
         )
     else:
-        # обновляем только переданные поля
         if username is not None:
             c.execute('UPDATE users SET username=? WHERE telegram_id=?', (username, telegram_id))
         if tinkofftoken is not None:
@@ -156,6 +154,7 @@ def getuser(telegram_id: int) -> Optional[dict]:
     conn.close()
     if not row:
         return None
+
     tinkofftoken_blob = row[2]
     tinkofftoken = None
     if tinkofftoken_blob is not None:
@@ -163,43 +162,42 @@ def getuser(telegram_id: int) -> Optional[dict]:
             if FERNET_AVAILABLE and fernet:
                 tinkofftoken = fernet.decrypt(tinkofftoken_blob).decode()
             else:
-                # stored as bytes of plaintext
-                tinkofftoken = tinkofftokenblob.decode() if isinstance(tinkofftokenblob, (bytes, bytearray)) else tinkofftokenblob
+                tinkofftoken = tinkofftoken_blob.decode() if isinstance(tinkofftoken_blob, (bytes, bytearray)) else tinkofftoken_blob
         except Exception:
             tinkofftoken = None
 
     return {
-        "telegramid": row0,
-        "username": row1,
+        "telegramid": row[0],
+        "username": row[1],
         "tinkofftoken": tinkofftoken,
-        "accountid": row3,
-        "autotrading": bool(row4),
-        "signalsenabled": bool(row5),
+        "accountid": row[3],
+        "autotrading": bool(row[4]),
+        "signalsenabled": bool(row[5]),
         "subscriptionuntil": row[6],
-        "createdat": row7,
+        "createdat": row[7],
     }
 
 def setautotrading(telegramid: int, state: bool):
-    conn = conn()
+    conn = _conn()
     c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO users (telegramid, username, createdat) VALUES (?, ?, ?)', (telegramid, "", datetime.utcnow().isoformat()))
-    c.execute('UPDATE users SET autotrading=? WHERE telegramid=?', (1 if state else 0, telegramid))
+    c.execute('INSERT OR IGNORE INTO users (telegram_id, username, created_at) VALUES (?, ?, ?)', (telegramid, "", datetime.utcnow().isoformat()))
+    c.execute('UPDATE users SET autotrading=? WHERE telegram_id=?', (1 if state else 0, telegramid))
     conn.commit()
     conn.close()
 
 def setsignalsenabled(telegramid: int, state: bool):
-    conn = conn()
+    conn = _conn()
     c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO users (telegramid, username, createdat) VALUES (?, ?, ?)', (telegramid, "", datetime.utcnow().isoformat()))
-    c.execute('UPDATE users SET signalsenabled=? WHERE telegramid=?', (1 if state else 0, telegramid))
+    c.execute('INSERT OR IGNORE INTO users (telegram_id, username, created_at) VALUES (?, ?, ?)', (telegramid, "", datetime.utcnow().isoformat()))
+    c.execute('UPDATE users SET signalsenabled=? WHERE telegram_id=?', (1 if state else 0, telegramid))
     conn.commit()
     conn.close()
 
 def setsubscription(telegramid: int, untiliso: str):
-    conn = conn()
+    conn = _conn()
     c = conn.cursor()
-    c.execute('INSERT OR IGNORE INTO users (telegramid, username, createdat) VALUES (?, ?, ?)', (telegramid, "", datetime.utcnow().isoformat()))
-    c.execute('UPDATE users SET subscriptionuntil=? WHERE telegramid=?', (untiliso, telegramid))
+    c.execute('INSERT OR IGNORE INTO users (telegram_id, username, created_at) VALUES (?, ?, ?)', (telegramid, "", datetime.utcnow().isoformat()))
+    c.execute('UPDATE users SET subscription_until=? WHERE telegram_id=?', (untiliso, telegramid))
     conn.commit()
     conn.close()
 
@@ -214,7 +212,6 @@ def userhasactivesubscription(telegramid: int) -> bool:
         return False
     # совместимость с прежними именами токен-функций (если где-то используются)
 def savetoken(telegramid: int, rawtoken: str):
-    # просто сохраняем в users.tinkofftoken
     createorupdateuser(telegramid, tinkofftoken=rawtoken)
 
 def gettoken(telegramid: int) -> Optional[str]:
@@ -222,8 +219,8 @@ def gettoken(telegramid: int) -> Optional[str]:
     return u.get("tinkofftoken") if u else None
 
 def deletetoken(telegramid: int):
-    conn = conn()
+    conn = _conn()
     c = conn.cursor()
-    c.execute('UPDATE users SET tinkofftoken=NULL WHERE telegramid=?', (telegramid,))
+    c.execute('UPDATE users SET tinkofftoken=NULL WHERE telegram_id=?', (telegramid,))
     conn.commit()
     conn.close()

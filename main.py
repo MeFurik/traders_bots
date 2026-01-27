@@ -233,15 +233,15 @@ def main():
     # TELEGRAMBOTTOKEN должен быть определён в config.py (строка: TELEGRAMBOTTOKEN = "123:ABC...")
     if not TELEGRAM_BOT_TOKEN:
         raise SystemExit("TELEGRAM_BOT_TOKEN не задан в config.py")
-    updater = Updater(TELEGRAM_BOT_TOKEN, usecontext=True)
+    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
 
     dp = updater.dispatcher
 
-    dp.addhandler(CommandHandler("start", start))
-    dp.addhandler(CallbackQueryHandler(callbackhandler))
-    dp.addhandler(MessageHandler(Filters.text & ~Filters.command, texthandler))
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CallbackQueryHandler(callbackhandler))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
 
-    updater.startpolling()
+    updater.start_polling()
     updater.idle()
 
 
