@@ -34,13 +34,13 @@ async def global_trading_loop(app):
                     f"ТЕСТОВЫЙ СИГНАЛ:\n"
                     f"FIGI: {signalfigi}\n"
                     f"Цена: {signalprice}\n"
-                    f"SL ~{signalprice * (1 - SLPCT/100):.2f}\n"
-                    f"TP ~{signalprice * (1 + TPPCT/100):.2f}\n"
+                    f"SL ~{signalprice * (1 - SL_PCT / 100):.2f}\n"
+                    f"TP ~{signalprice * (1 + TP_PCT / 100):.2f}\n"
                 )
                 try:
                     await app.bot.send_message(chat_id=telegramid, text=text)
                 except Exception:
-                    # например, пользователь заблокировал бота — пропускаем
+                    # например, пользователь заблокировал бота -- пропускаем
                     pass
 
             # 2) Автоторговля (если включена и есть подписка / админ)

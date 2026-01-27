@@ -1,5 +1,7 @@
 # main.py
 import logging
+import threading
+import asyncio
 from datetime import datetime, timedelta
 
 from telegram import (
@@ -7,7 +9,7 @@ from telegram import (
 )
 from telegram.ext import (
     Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler,
-    ConversationHandler, CallbackContext
+    CallbackContext
 )
 
 from config import TELEGRAM_BOT_TOKEN
@@ -18,7 +20,6 @@ from db import (
 )
 from utils import isadmin
 from trading_loop import global_trading_loop
-
 logging.basicConfig(level=logging.INFO)
 
 
@@ -33,11 +34,11 @@ def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
     if user:
         text += f"Подписка: {'активна' if subok or isadmin(userid) else 'нет'}\n"
         text += f"Автоторговля: {'ON' if user['autotrading'] else 'OFF'}\n"
-        text += f"Сигналы: {'ON' if user['signals_enabled'] else 'OFF'}\n"
+        text += f"Сигналы: {'ON' if user['signalsenabled'] else 'OFF'}\n"
     else:
         text += "Пользователь ещё не настроен. Нажми 'Настроить API'.\n"
 
-    keyboard = [
+        keyboard = [
         [InlineKeyboardButton("Настроить API", callback_data="menu_set_api")],
         [
             InlineKeyboardButton("Сигналы ON/OFF", callback_data="menu_toggle_signals"),
@@ -50,8 +51,9 @@ def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
 
     markup = InlineKeyboardMarkup(keyboard)
 
-    if edit and update.callback_query:
-        update.callback_query.edit_message_text(text=text, reply_markup=markup)
+
+    if edit and update.callbackquery:
+        update.callbackquery.edit_message_text(text=text, reply_markup=markup)
     else:
         update.message.reply_text(text=text, reply_markup=markup)
 
@@ -60,66 +62,57 @@ def start(update: Update, context: CallbackContext):
     showmainmenu(update, context, edit=False)
 
 
-def callback_handler(update: Update, context: CallbackContext):
+def callbackhandler(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     data = query.data
-    telegram_id = query.from_user.id
-    user = getuser(telegram_id)
+    telegramid = query.fromuser.id
+    user = getuser(telegramid)
 
-    if data == "menu_status":
+    if data == "menustatus":
         showmainmenu(update, context, edit=True)
 
-    elif data == "menu_set_api":
-        context.user_data["awaiting"] = "token"
+    elif data == "menusetapi":
+        context.userdata["awaiting"] = "token"
         query.edit_message_text(
             "Отправь свой Tinkoff Invest API токен.\nНапиши 'отмена' для отмены."
         )
 
-    elif data == "menu_toggle_signals":
+    elif data == "menutogglesignals":
         if not user:
             query.edit_message_text("Сначала настрой API через 'Настроить API'.")
             return
-        new_state = not user["signals_enabled"]
-        setsignalsenabled(telegram_id, new_state)
-        query.edit_message_text(f"Сигналы теперь: {'ON' if new_state else 'OFF'}")
+        newstate = not user["signalsenabled"]
+        setsignalsenabled(telegramid, newstate)
+        query.edit_message_text(f"Сигналы теперь: {'ON' if newstate else 'OFF'}")
         showmainmenu(update, context, edit=False)
 
-    elif data == "menu_toggle_auto":
+    elif data == "menutoggleauto":
         if not user:
             query.edit_message_text("Сначала настрой API через 'Настроить API'.")
             return
-        if not isadmin(telegram_id) and not userhasactivesubscription(telegram_id):
+        if not isadmin(telegramid) and not userhasactivesubscription(telegramid):
             query.edit_message_text("Нет активной подписки, автоторговля недоступна.")
             return
-        new_state = not user["autotrading"]
-        setautotrading(telegram_id, new_state)
-        query.edit_message_text(f"Автоторговля теперь: {'ON' if new_state else 'OFF'}")
+        newstate = not user["autotrading"]
+        setautotrading(telegramid, newstate)
+        query.edit_message_text(f"Автоторговля теперь: {'ON' if newstate else 'OFF'}")
         showmainmenu(update, context, edit=False)
 
-    elif data == "menu_admin":
-        if not isadmin(telegram_id):
+    elif data == "menuadmin":
+        if not isadmin(telegramid):
             query.edit_message_text("У тебя нет прав админа.")
             return
         keyboard = [
-            [InlineKeyboardButton("Выдать подписку", callback_data="admin_grant_sub")],
-            [InlineKeyboardButton("Назад", callback_data="menu_status")],
+            [InlineKeyboardButton("Выдать подписку", callback_data="admingrantsub"),
+            InlineKeyboardButton("Назад", callback_data="menu_status")],
         ]
         markup = InlineKeyboardMarkup(keyboard)
-        query.editmessagetext("Админ-панель:", replymarkup=markup)
-
-    elif data == "admingrantsub":
-        if not isadmin(telegramid):
-            query.editmessagetext("Нет прав.")
-            return
-        context.userdata["awaiting"] = "grantsubuser"
-        query.editmessagetext(
-            "Введи telegramid пользователя, которому выдать/продлить подписку.\nПример: 123456789"
-        )
+        query.edit_message_text("Админ-панель:", reply_markup=markup)
 
 
 def texthandler(update: Update, context: CallbackContext):
-    telegramid = update.effectiveuser.id
+    telegramid = update.effective_user.id
     text = update.message.text.strip()
 
     # отмена
@@ -127,7 +120,7 @@ def texthandler(update: Update, context: CallbackContext):
         context.userdata.pop("awaiting", None)
         context.userdata.pop("tinkofftoken", None)
         context.userdata.pop("grantsubtarget", None)
-        update.message.replytext("Отменено.")
+        update.message.reply_text("Отменено.")
         showmainmenu(update, context, edit=False)
         return
 
@@ -135,21 +128,21 @@ def texthandler(update: Update, context: CallbackContext):
 
     # --- Ввод API токена ---
     if awaiting == "token":
-        context.userdata["tinkoff_token"] = text
-        context.userdata["awaiting"] = "account"
-        update.message.replytext(
+        context.userdata["tinkofftoken"] = text
+        context.user_data["awaiting"] = "account"
+        update.message.reply_text(
             "Токен сохранён. Теперь отправь свой accountid."
         )
         return
 
     # --- Ввод accountid ---
     if awaiting == "account":
-        token = context.userdata.get("tinkofftoken")
+        token = context.user_data.get("tinkofftoken")
         accountid = text
         createorupdateuser(telegramid, tinkofftoken=token, accountid=accountid)
-        context.userdata.pop("awaiting", None)
-        context.userdata.pop("tinkofftoken", None)
-        update.message.replytext("API токен и accountid сохранены.")
+        context.user_data.pop("awaiting", None)
+        context.user_data.pop("tinkofftoken", None)
+        update.message.reply_text("API токен и accountid сохранены.")
         showmainmenu(update, context, edit=False)
         return
 
@@ -158,16 +151,16 @@ def texthandler(update: Update, context: CallbackContext):
         try:
             targetid = int(text)
         except ValueError:
-            update.message.replytext("Некорректный telegramid. Введи число или 'отмена'.")
+            update.message.reply_text("Некорректный telegramid. Введи число или 'отмена'.")
             return
 
         if not getuser(targetid):
-            update.message.replytext(
+            update.message.reply_text(
                 "Пользователь ещё не общался с ботом. Подписка всё равно будет сохранена."
             )
-        context.userdata["grant_sub_target"] = targetid
-        context.userdata["awaiting"] = "grantsubuntil"
-        update.message.replytext(
+        context.user_data["grantsubtarget"] = targetid
+        context.user_data["awaiting"] = "grantsubuntil"
+        update.message.reply_text(
             "Введи дату окончания подписки в формате YYYY-MM-DD или '+N' (дней).\n"
             "Примеры:\n2026-12-31\n+30"
         )
@@ -175,20 +168,19 @@ def texthandler(update: Update, context: CallbackContext):
 
     # --- Админ: ввод срока подписки ---
     if awaiting == "grantsubuntil" and isadmin(telegramid):
-        targetid = context.userdata.get("grantsubtarget")
+        targetid = context.user_data.get("grantsubtarget")
         if not targetid:
-            update.message.replytext("Не задан пользователь, отмена.")
-            context.userdata.pop("awaiting", None)
+            update.message.reply_text("Не задан пользователь, отмена.")
+            context.user_data.pop("awaiting", None)
             return
 
-        untiliso = None
         if text.startswith("+"):
             try:
-                days = int(text1)
+                days = int(text[1:])
                 until = datetime.utcnow() + timedelta(days=days)
                 untiliso = until.isoformat()
             except ValueError:
-                update.message.replytext("Некорректный формат '+N'.")
+                update.message.reply_text("Некорректный формат '+N'.")
                 return
         else:
             try:
@@ -196,13 +188,13 @@ def texthandler(update: Update, context: CallbackContext):
                 d = d.replace(hour=23, minute=59, second=59)
                 untiliso = d.isoformat()
             except ValueError:
-                update.message.replytext("Неверный формат. Нужен YYYY-MM-DD или '+N'.")
+                update.message.reply_text("Неверный формат. Нужен YYYY-MM-DD или '+N'.")
                 return
 
         setsubscription(targetid, untiliso)
-        context.userdata.pop("awaiting", None)
-        context.userdata.pop("grantsubtarget", None)
-        update.message.replytext(
+        context.user_data.pop("awaiting", None)
+        context.user_data.pop("grantsubtarget", None)
+        update.message.reply_text(
             f"Подписка для {targetid} установлена до {untiliso}."
         )
         showmainmenu(update, context, edit=False)
@@ -212,30 +204,38 @@ def texthandler(update: Update, context: CallbackContext):
     showmainmenu(update, context, edit=False)
 
 
+def run_trading_loop_in_thread(updater: Updater):
+    """
+    Отдельный поток с собственным asyncio loop’ом,
+    в котором крутится global_trading_loop(updater).
+    """
+    def _runner():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(global_trading_loop(updater))
+        loop.close()
+
+    th = threading.Thread(target=_runner, daemon=True)
+    th.start()
+
+
 def main():
     initdb()
 
-    # создаём Updater и dispatcher для v13
     updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
-
 
     # /start
     dispatcher.add_handler(CommandHandler("start", start))
 
     # Кнопки
-    dispatcher.add_handler(CallbackQueryHandler(callback_handler))
+    dispatcher.add_handler(CallbackQueryHandler(callbackhandler))
 
     # Текстовые сообщения
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
 
-    # Глобальный торговый цикл – запускаем в фоне
-    # В v13 нет .post_init, используем job_queue или отдельный поток.
-    # Если global_trading_loop у тебя обычная синхронная функция – достаточно:
-    dispatcher.job_queue.run_once(
-        lambda ctx: global_trading_loop(dispatcher),
-        when=0
-    )
+    # Запускаем глобальный торговый цикл в отдельном потоке
+    run_trading_loop_in_thread(updater)
 
     updater.start_polling()
     updater.idle()
