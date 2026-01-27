@@ -216,8 +216,9 @@ def main():
     initdb()
 
     # создаём Updater и dispatcher для v13
-    updater = Updater(TELEGRAM_BOT_TOKEN)
+    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
+
 
     # /start
     dispatcher.add_handler(CommandHandler("start", start))
