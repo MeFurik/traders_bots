@@ -16,7 +16,7 @@ from telegram.ext import (
 
 from config import TELEGRAM_BOT_TOKEN
 from db import (
-    initdb, getuser, createorupdateuser,
+    init_db, getuser, createorupdateuser,
     setautotrading, setsignalsenabled,
     setsubscription, userhasactivesubscription
 )
@@ -40,22 +40,22 @@ def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
     else:
         text += "Пользователь ещё не настроен. Нажми 'Настроить API'.\n"
 
-        keyboard = [
-        [InlineKeyboardButton("Настроить API", callback_data="menu_set_api")],
+    # единая клавиатура (callback_data согласованы с callbackhandler)
+    keyboard = [
+        [InlineKeyboardButton("Настроить API", callback_data="menusetapi")],
         [
-            InlineKeyboardButton("Сигналы ON/OFF", callback_data="menu_toggle_signals"),
-            InlineKeyboardButton("Автоторговля ON/OFF", callback_data="menu_toggle_auto"),
+            InlineKeyboardButton("Сигналы ON/OFF", callback_data="menutogglesignals"),
+            InlineKeyboardButton("Автоторговля ON/OFF", callback_data="menutoggleauto"),
         ],
-        [InlineKeyboardButton("Статус", callback_data="menu_status")],
+        [InlineKeyboardButton("Статус", callback_data="menustatus")],
     ]
     if isadmin(userid):
-        keyboard.append([InlineKeyboardButton("Админ-панель", callback_data="menu_admin")])
+        keyboard.append([InlineKeyboardButton("Админ-панель", callback_data="menuadmin")])
 
     markup = InlineKeyboardMarkup(keyboard)
 
-
-    if edit and update.callbackquery:
-        update.callbackquery.edit_message_text(text=text, reply_markup=markup)
+    if edit and update.callback_query:
+        update.callback_query.edit_message_text(text=text, reply_markup=markup)
     else:
         update.message.reply_text(text=text, reply_markup=markup)
 
@@ -103,14 +103,22 @@ def callbackhandler(update: Update, context: CallbackContext):
 
     elif data == "menuadmin":
         if not isadmin(telegramid):
-            query.edit_message_text("У тебя нет прав админа.")
+            query.editmessagetext("У тебя нет прав админа.")
             return
         keyboard = [
-            [InlineKeyboardButton("Выдать подписку", callback_data="admingrantsub"),
-            InlineKeyboardButton("Назад", callback_data="menu_status")],
+                [InlineKeyboardButton("Выдать подписку", callback_data="admingrantsub")],
+                [InlineKeyboardButton("Назад", callback_data="menustatus")],
         ]
         markup = InlineKeyboardMarkup(keyboard)
-        query.edit_message_text("Админ-панель:", reply_markup=markup)
+        query.editmessagetext("Админ-панель:", replymarkup=markup)
+
+    elif data == "admingrantsub":
+        # инициируем ввод telegram id для выдачи подписки
+        if not isadmin(telegramid):
+            query.editmessagetext("У тебя нет прав админа.")
+            return
+        context.userdata["awaiting"] = "grantsubuser"
+        query.editmessagetext("Введи telegram id пользователя, которому выдать подписку (или 'отмена').")
 
 
 def texthandler(update: Update, context: CallbackContext):
@@ -222,16 +230,20 @@ def run_trading_loop_in_thread(updater: Updater):
 
 
 def main():
-    updater = Updater("ТВОЙ_ТОКЕН", use_context=True)
+    # TELEGRAMBOTTOKEN должен быть определён в config.py (строка: TELEGRAMBOTTOKEN = "123:ABC...")
+    if not TELEGRAM_BOT_TOKEN:
+        raise SystemExit("TELEGRAM_BOT_TOKEN не задан в config.py")
+    updater = Updater(TELEGRAM_BOT_TOKEN, usecontext=True)
 
     dp = updater.dispatcher
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(callbackhandler))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
+    dp.addhandler(CommandHandler("start", start))
+    dp.addhandler(CallbackQueryHandler(callbackhandler))
+    dp.addhandler(MessageHandler(Filters.text & ~Filters.command, texthandler))
 
-    updater.start_polling()
+    updater.startpolling()
     updater.idle()
+
 
 
 if __name__ == "__main__":
