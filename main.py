@@ -4,12 +4,14 @@ import threading
 import asyncio
 from datetime import datetime, timedelta
 
-from telegram import (
-    Update, InlineKeyboardMarkup, InlineKeyboardButton
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler,
-    CallbackContext
+    Updater,
+    CallbackContext,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    Filters,
 )
 
 from config import TELEGRAM_BOT_TOKEN
@@ -220,22 +222,13 @@ def run_trading_loop_in_thread(updater: Updater):
 
 
 def main():
-    initdb()
+    updater = Updater("ТВОЙ_ТОКЕН", use_context=True)
 
-    updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
+    dp = updater.dispatcher
 
-    # /start
-    dispatcher.add_handler(CommandHandler("start", start))
-
-    # Кнопки
-    dispatcher.add_handler(CallbackQueryHandler(callbackhandler))
-
-    # Текстовые сообщения
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
-
-    # Запускаем глобальный торговый цикл в отдельном потоке
-    run_trading_loop_in_thread(updater)
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CallbackQueryHandler(callbackhandler))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
 
     updater.start_polling()
     updater.idle()
