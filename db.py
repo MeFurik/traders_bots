@@ -59,7 +59,7 @@ def getuser(telegramid: int):
         return None
     return {
         "telegramid": row[0],
-        "tinkofftoken": row1,
+        "tinkofftoken": row[1],
         "accountid": row[2],
         "subscriptionuntil": row[3],
         "autotrading": bool(row[4]),
@@ -125,7 +125,7 @@ def userhasactivesubscription(telegramid: int) -> bool:
 
 # ---------- TRADES ----------
 
-def logtradeopen(telegramid, figi, qty, entryprice, sl, tp):
+def log_trade_open(telegramid, figi, qty, entryprice, sl, tp):
     conn = sqlite3.connect(DBPATH)
     c = conn.cursor()
     c.execute("""
@@ -136,7 +136,7 @@ def logtradeopen(telegramid, figi, qty, entryprice, sl, tp):
     conn.close()
 
 
-def logtradeclose(telegramid, figi, closeprice, pnl):
+def log_trade_close(telegramid, figi, closeprice, pnl):
     conn = sqlite3.connect(DBPATH)
     c = conn.cursor()
     c.execute("""
@@ -148,7 +148,7 @@ def logtradeclose(telegramid, figi, closeprice, pnl):
     conn.close()
 
 
-def getopenpositions(telegramid):
+def get_open_positions(telegramid):
     conn = sqlite3.connect(DBPATH)
     c = conn.cursor()
     c.execute("""

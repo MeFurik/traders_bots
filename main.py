@@ -216,7 +216,7 @@ def main():
     initdb()
 
     # создаём Updater и dispatcher для v13
-    updater = Updater(TELEGRAMBOTTOKEN, usecontext=True)
+    updater = Updater(TELEGRAM_BOT_TOKEN)
     dispatcher = updater.dispatcher
 
     # /start
@@ -226,7 +226,7 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(callback_handler))
 
     # Текстовые сообщения
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, text_handler))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
 
     # Глобальный торговый цикл – запускаем в фоне
     # В v13 нет .post_init, используем job_queue или отдельный поток.
