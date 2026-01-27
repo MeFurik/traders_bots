@@ -66,7 +66,7 @@ def callbackhandler(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
     data = query.data
-    telegramid = query.fromuser.id
+    telegramid = query.from_user.id
     user = getuser(telegramid)
 
     if data == "menustatus":
