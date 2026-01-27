@@ -54,8 +54,8 @@ def init_db():
     conn.close()
 
 # alias для main.py (main.py ожидает initdb)
-def init_db():
-    return init_db()
+# def init_db():
+  #  return init_db()
 
 def log_trade_open(telegram_id: int, symbol: str, direction: str, lots: float,
                    open_price: float, open_time: Optional[str] = None, meta: Optional[dict] = None) -> int:

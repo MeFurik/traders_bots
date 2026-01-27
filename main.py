@@ -14,9 +14,12 @@ from telegram.ext import (
     Filters,
 )
 
+from db import init_db
+init_db()
+
 from config import TELEGRAM_BOT_TOKEN
 from db import (
-    init_db, getuser, createorupdateuser,
+    getuser, createorupdateuser,
     setautotrading, setsignalsenabled,
     setsubscription, userhasactivesubscription
 )
