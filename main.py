@@ -73,7 +73,7 @@ def callbackhandler(update: Update, context: CallbackContext):
         showmainmenu(update, context, edit=True)
 
     elif data == "menusetapi":
-        context.userdata["awaiting"] = "token"
+        context.user_data["awaiting"] = "token"
         query.edit_message_text(
             "Отправь свой Tinkoff Invest API токен.\nНапиши 'отмена' для отмены."
         )
@@ -117,18 +117,18 @@ def texthandler(update: Update, context: CallbackContext):
 
     # отмена
     if text.lower() in ("отмена", "cancel"):
-        context.userdata.pop("awaiting", None)
-        context.userdata.pop("tinkofftoken", None)
-        context.userdata.pop("grantsubtarget", None)
+        context.user_data.pop("awaiting", None)
+        context.user_data.pop("tinkofftoken", None)
+        context.user_data.pop("grantsubtarget", None)
         update.message.reply_text("Отменено.")
         showmainmenu(update, context, edit=False)
         return
 
-    awaiting = context.userdata.get("awaiting")
+    awaiting = context.user_data.get("awaiting")
 
     # --- Ввод API токена ---
     if awaiting == "token":
-        context.userdata["tinkofftoken"] = text
+        context.user_data["tinkofftoken"] = text
         context.user_data["awaiting"] = "account"
         update.message.reply_text(
             "Токен сохранён. Теперь отправь свой accountid."
