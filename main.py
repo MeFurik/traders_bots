@@ -14,22 +14,25 @@ from telegram.ext import (
     Filters,
 )
 
-from db import init_db
-init_db()
-
 from config import TELEGRAM_BOT_TOKEN
 from db import (
+    init_db,
     getuser, createorupdateuser,
     setautotrading, setsignalsenabled,
     setsubscription, userhasactivesubscription
 )
 from utils import isadmin
 from trading_loop import global_trading_loop
+
+# init DB
+init_db()
+
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(name)
 
 
 def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
-    userid = update.effective_user.id
+    userid = update.effectiveuser.id
     user = getuser(userid)
     subok = userhasactivesubscription(userid) if user else False
 
@@ -43,24 +46,34 @@ def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
     else:
         text += "Пользователь ещё не настроен. Нажми 'Настроить API'.\n"
 
-    # единая клавиатура (callback_data согласованы с callbackhandler)
     keyboard = [
         [InlineKeyboardButton("Настроить API", callback_data="menusetapi")],
-        [
-            InlineKeyboardButton("Сигналы ON/OFF", callback_data="menutogglesignals"),
-            InlineKeyboardButton("Автоторговля ON/OFF", callback_data="menutoggleauto"),
-        ],
+        
+            [nlineKeyboardButton("Сигналы ON/OFF", callback_data="menutogglesignals")],
+            [InlineKeyboardButton("Автоторговля ON/OFF", callback_data="menutoggleauto")],
         [InlineKeyboardButton("Статус", callback_data="menustatus")],
     ]
     if isadmin(userid):
-        keyboard.append([InlineKeyboardButton("Админ-панель", callback_data="menuadmin")])
+        keyboard.append(InlineKeyboardButton("Админ-панель", callback_data="menuadmin"))
 
     markup = InlineKeyboardMarkup(keyboard)
 
-    if edit and update.callback_query:
-        update.callback_query.edit_message_text(text=text, reply_markup=markup)
+    # Если хотим редактировать сообщение (вызов из callback)
+    if edit and update.callbackquery:
+        try:
+            update.callbackquery.editmessagetext(text=text, replymarkup=markup)
+        except Exception:
+            # fallback: отправим новое сообщение
+            context.bot.sendmessage(chatid=update.effectivechat.id, text=text, replymarkup=markup)
+        # ответ на callback, чтобы убрать "часики"
+        try:
+            update.callbackquery.answer()
+        except Exception:
+            pass
     else:
-        update.message.reply_text(text=text, reply_markup=markup)
+        # работает как для обычного message, так и для callbackquery
+        # (в случае callback — отправит новое сообщение)
+        update.effectivemessage.replytext(text=text, replymarkup=markup)
 
 
 def start(update: Update, context: CallbackContext):
@@ -68,28 +81,36 @@ def start(update: Update, context: CallbackContext):
 
 
 def callbackhandler(update: Update, context: CallbackContext):
-    query = update.callback_query
-    query.answer()
+    # Этот хендлер зарегистрирован как CallbackQueryHandler, тут ожидаем callbackquery
+    query = update.callbackquery
+    if not query:
+        return
+    # убираем "часики"
+    try:
+        query.answer()
+    except Exception:
+        pass
+
     data = query.data
-    telegramid = query.from_user.id
+    telegramid = query.fromuser.id
     user = getuser(telegramid)
 
     if data == "menustatus":
         showmainmenu(update, context, edit=True)
 
     elif data == "menusetapi":
-        context.user_data["awaiting"] = "token"
-        query.edit_message_text(
+        context.userdata["awaiting"] = "token"
+        query.editmessagetext(
             "Отправь свой Tinkoff Invest API токен.\nНапиши 'отмена' для отмены."
         )
 
     elif data == "menutogglesignals":
         if not user:
-            query.edit_message_text("Сначала настрой API через 'Настроить API'.")
+            query.editmessagetext("Сначала настрой API через 'Настроить API'.")
             return
         newstate = not user["signalsenabled"]
         setsignalsenabled(telegramid, newstate)
-        query.edit_message_text(f"Сигналы теперь: {'ON' if newstate else 'OFF'}")
+        query.editmessagetext(f"Сигналы теперь: {'ON' if newstate else 'OFF'}")
         showmainmenu(update, context, edit=False)
 
     elif data == "menutoggleauto":
@@ -106,25 +127,28 @@ def callbackhandler(update: Update, context: CallbackContext):
 
     elif data == "menuadmin":
         if not isadmin(telegramid):
-            query.editmessagetext("У тебя нет прав админа.")
+            query.edit_message_text("У тебя нет прав админа.")
             return
         keyboard = [
-                [InlineKeyboardButton("Выдать подписку", callback_data="admingrantsub")],
-                [InlineKeyboardButton("Назад", callback_data="menustatus")],
+            [InlineKeyboardButton("Выдать подписку", callback_data="admingrantsub")],
+            [InlineKeyboardButton("Назад", callback_data="menustatus")],
         ]
         markup = InlineKeyboardMarkup(keyboard)
-        query.editmessagetext("Админ-панель:", replymarkup=markup)
+        query.edit_message_text("Админ-панель:", reply_markup=markup)
 
     elif data == "admingrantsub":
         # инициируем ввод telegram id для выдачи подписки
         if not isadmin(telegramid):
-            query.editmessagetext("У тебя нет прав админа.")
+            query.edit_message_text("У тебя нет прав админа.")
             return
-        context.userdata["awaiting"] = "grantsubuser"
-        query.editmessagetext("Введи telegram id пользователя, которому выдать подписку (или 'отмена').")
+        context.user_data["awaiting"] = "grantsubuser"
+        query.edit_message_text("Введи telegram id пользователя, которому выдать подписку (или 'отмена').")
 
 
 def texthandler(update: Update, context: CallbackContext):
+    # этот хендлер — MessageHandler(Filters.text & ~Filters.command)
+    if not update.message:
+        return
     telegramid = update.effective_user.id
     text = update.message.text.strip()
 
@@ -232,21 +256,33 @@ def run_trading_loop_in_thread(updater: Updater):
     th.start()
 
 
+def error_handler(update, context):
+    # глобальный обработчик ошибок для dispatcher
+    logger.exception("Exception while handling an update: %s", update, exc_info=context.error)
+
+
 def main():
-    # TELEGRAMBOTTOKEN должен быть определён в config.py (строка: TELEGRAMBOTTOKEN = "123:ABC...")
+    # TELEGRAM_BOT_TOKEN должен быть определён в config.py
     if not TELEGRAM_BOT_TOKEN:
         raise SystemExit("TELEGRAM_BOT_TOKEN не задан в config.py")
     updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
 
     dp = updater.dispatcher
 
+    # Регистрируем хендлеры
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CallbackQueryHandler(callbackhandler))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, texthandler))
 
+    # Обработчик ошибок
+    dp.add_error_handler(error_handler)
+
+    # Запустить фоновый торговый цикл (paper-mode/симуляция)
+    # Если хотите — раскомментируйте ниже; убедитесь, что global_trading_loop ожидает Updater/Updater.bot
+    # run_trading_loop_in_thread(updater)
+
     updater.start_polling()
     updater.idle()
-
 
 
 if __name__ == "__main__":
