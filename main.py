@@ -28,11 +28,16 @@ from trading_loop import global_trading_loop
 init_db()
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(name)
+logger = logging.getLogger("tradersbot")
 
 
 def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
-    userid = update.effectiveuser.id
+    # безопасное получение user id
+    user_obj = update.effective_user or (update.effective_message.from_user if update.effective_message else None)
+    if not user_obj:
+        return
+    userid = user_obj.id
+
     user = getuser(userid)
     subok = userhasactivesubscription(userid) if user else False
 
@@ -46,34 +51,42 @@ def showmainmenu(update: Update, context: CallbackContext, edit: bool = False):
     else:
         text += "Пользователь ещё не настроен. Нажми 'Настроить API'.\n"
 
+    # корректная структура: список строк, каждая строка — список кнопок
     keyboard = [
         [InlineKeyboardButton("Настроить API", callback_data="menusetapi")],
-        
-            [nlineKeyboardButton("Сигналы ON/OFF", callback_data="menutogglesignals")],
-            [InlineKeyboardButton("Автоторговля ON/OFF", callback_data="menutoggleauto")],
+        [InlineKeyboardButton("Сигналы ON/OFF", callback_data="menutogglesignals"),
+         InlineKeyboardButton("Автоторговля ON/OFF", callback_data="menutoggleauto")],
         [InlineKeyboardButton("Статус", callback_data="menustatus")],
     ]
+
     if isadmin(userid):
-        keyboard.append(InlineKeyboardButton("Админ-панель", callback_data="menuadmin"))
+        # добавить row (список), а не отдельную кнопку
+        keyboard.append([InlineKeyboardButton("Админ-панель", callback_data="menuadmin")])
 
     markup = InlineKeyboardMarkup(keyboard)
 
-    # Если хотим редактировать сообщение (вызов из callback)
-    if edit and update.callbackquery:
+    # если вызвано из callback и хотим редактировать сообщение
+    if edit and update.callback_query:
         try:
-            update.callbackquery.editmessagetext(text=text, replymarkup=markup)
+            update.callback_query.edit_message_text(text=text, reply_markup=markup)
         except Exception:
-            # fallback: отправим новое сообщение
-            context.bot.sendmessage(chatid=update.effectivechat.id, text=text, replymarkup=markup)
-        # ответ на callback, чтобы убрать "часики"
-        try:
-            update.callbackquery.answer()
-        except Exception:
-            pass
+            # fallback — отправить новое сообщение
+            chat_id = update.effective_chat.id if update.effective_chat else userid
+            context.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
+        finally:
+            # ответ на callback, чтобы убрать "часики"
+            try:
+                update.callback_query.answer()
+            except Exception:
+                pass
+        return
+
+    # обычная отправка
+    if update.effective_message:
+        update.effective_message.reply_text(text=text, reply_markup=markup)
     else:
-        # работает как для обычного message, так и для callbackquery
-        # (в случае callback — отправит новое сообщение)
-        update.effectivemessage.replytext(text=text, replymarkup=markup)
+        chat_id = update.effective_chat.id if update.effective_chat else userid
+        context.bot.send_message(chat_id=chat_id, text=text, reply_markup=markup)
 
 
 def start(update: Update, context: CallbackContext):
@@ -82,7 +95,7 @@ def start(update: Update, context: CallbackContext):
 
 def callbackhandler(update: Update, context: CallbackContext):
     # Этот хендлер зарегистрирован как CallbackQueryHandler, тут ожидаем callbackquery
-    query = update.callbackquery
+    query = update.callback_query
     if not query:
         return
     # убираем "часики"
@@ -92,25 +105,25 @@ def callbackhandler(update: Update, context: CallbackContext):
         pass
 
     data = query.data
-    telegramid = query.fromuser.id
+    telegramid = query.from_user.id
     user = getuser(telegramid)
 
     if data == "menustatus":
         showmainmenu(update, context, edit=True)
 
     elif data == "menusetapi":
-        context.userdata["awaiting"] = "token"
-        query.editmessagetext(
+        context.user_data["awaiting"] = "token"
+        query.edit_message_text(
             "Отправь свой Tinkoff Invest API токен.\nНапиши 'отмена' для отмены."
         )
 
     elif data == "menutogglesignals":
         if not user:
-            query.editmessagetext("Сначала настрой API через 'Настроить API'.")
+            query.edit_message_text("Сначала настрой API через 'Настроить API'.")
             return
         newstate = not user["signalsenabled"]
         setsignalsenabled(telegramid, newstate)
-        query.editmessagetext(f"Сигналы теперь: {'ON' if newstate else 'OFF'}")
+        query.edit_message_text(f"Сигналы теперь: {'ON' if newstate else 'OFF'}")
         showmainmenu(update, context, edit=False)
 
     elif data == "menutoggleauto":
